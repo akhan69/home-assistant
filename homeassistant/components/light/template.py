@@ -44,7 +44,7 @@ LIGHT_SCHEMA = vol.Schema({
 })
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_LIGHTS): vol.Schema({cv.slug: LIGHT_SCHEMA}),
+    vol.Required(CONF_LIGHTS): cv.schema_with_slug_keys(LIGHT_SCHEMA),
 })
 
 
@@ -215,8 +215,8 @@ class LightTemplate(Light):
             optimistic_set = True
 
         if ATTR_BRIGHTNESS in kwargs and self._level_script:
-            self.hass.async_create_task(self._level_script.async_run(
-                {"brightness": kwargs[ATTR_BRIGHTNESS]}))
+            await self._level_script.async_run(
+                {"brightness": kwargs[ATTR_BRIGHTNESS]}, context=self._context)
         else:
             await self._on_script.async_run()
 
@@ -225,7 +225,7 @@ class LightTemplate(Light):
 
     async def async_turn_off(self, **kwargs):
         """Turn the light off."""
-        await self._off_script.async_run()
+        await self._off_script.async_run(context=self._context)
         if self._template is None:
             self._state = False
             self.async_schedule_update_ha_state()

@@ -39,7 +39,7 @@ async def async_setup(hass):
     return True
 
 
-@websocket_api.require_owner
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_list(hass, connection, msg):
     """Return a list of users."""
@@ -49,7 +49,7 @@ async def websocket_list(hass, connection, msg):
         websocket_api.result_message(msg['id'], result))
 
 
-@websocket_api.require_owner
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_delete(hass, connection, msg):
     """Delete a user."""
@@ -72,7 +72,7 @@ async def websocket_delete(hass, connection, msg):
         websocket_api.result_message(msg['id']))
 
 
-@websocket_api.require_owner
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_create(hass, connection, msg):
     """Create a user."""
@@ -92,6 +92,7 @@ def _user_info(user):
         'is_owner': user.is_owner,
         'is_active': user.is_active,
         'system_generated': user.system_generated,
+        'group_ids': [group.id for group in user.groups],
         'credentials': [
             {
                 'type': c.auth_provider_type,

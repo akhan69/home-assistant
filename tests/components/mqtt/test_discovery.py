@@ -3,10 +3,11 @@ import asyncio
 from unittest.mock import patch
 
 from homeassistant.components import mqtt
-from homeassistant.components.mqtt.discovery import async_start, \
-                                                    ALREADY_DISCOVERED
+from homeassistant.components.mqtt.discovery import (
+    ALREADY_DISCOVERED, async_start)
+from homeassistant.const import STATE_OFF, STATE_ON
 
-from tests.common import async_fire_mqtt_message, mock_coro, MockConfigEntry
+from tests.common import MockConfigEntry, async_fire_mqtt_message, mock_coro
 
 
 @asyncio.coroutine
@@ -184,7 +185,7 @@ def test_discovery_incl_nodeid(hass, mqtt_mock, caplog):
 
     assert state is not None
     assert state.name == 'Beer'
-    assert ('binary_sensor', 'my_node_id_bla') in hass.data[ALREADY_DISCOVERED]
+    assert ('binary_sensor', 'my_node_id bla') in hass.data[ALREADY_DISCOVERED]
 
 
 @asyncio.coroutine
@@ -208,3 +209,44 @@ def test_non_duplicate_discovery(hass, mqtt_mock, caplog):
     assert state_duplicate is None
     assert 'Component has already been discovered: ' \
            'binary_sensor bla' in caplog.text
+
+
+@asyncio.coroutine
+def test_discovery_expansion(hass, mqtt_mock, caplog):
+    """Test expansion of abbreviated discovery payload."""
+    entry = MockConfigEntry(domain=mqtt.DOMAIN)
+
+    yield from async_start(hass, 'homeassistant', {}, entry)
+
+    data = (
+        '{ "~": "some/base/topic",'
+        '  "name": "DiscoveryExpansionTest1",'
+        '  "stat_t": "test_topic/~",'
+        '  "cmd_t": "~/test_topic",'
+        '  "dev":{'
+        '    "ids":["5706DF"],'
+        '    "name":"DiscoveryExpansionTest1 Device",'
+        '    "mdl":"Generic",'
+        '    "sw":"1.2.3.4",'
+        '    "mf":"Noone"'
+        '  }'
+        '}'
+    )
+
+    async_fire_mqtt_message(
+        hass, 'homeassistant/switch/bla/config', data)
+    yield from hass.async_block_till_done()
+
+    state = hass.states.get('switch.DiscoveryExpansionTest1')
+    assert state is not None
+    assert state.name == 'DiscoveryExpansionTest1'
+    assert ('switch', 'bla') in hass.data[ALREADY_DISCOVERED]
+    assert state.state == STATE_OFF
+
+    async_fire_mqtt_message(hass, 'test_topic/some/base/topic',
+                            'ON')
+    yield from hass.async_block_till_done()
+    yield from hass.async_block_till_done()
+
+    state = hass.states.get('switch.DiscoveryExpansionTest1')
+    assert state.state == STATE_ON

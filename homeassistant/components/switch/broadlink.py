@@ -59,7 +59,7 @@ MP1_SWITCH_SLOT_SCHEMA = vol.Schema({
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_SWITCHES, default={}):
-        vol.Schema({cv.slug: SWITCH_SCHEMA}),
+        cv.schema_with_slug_keys(SWITCH_SCHEMA),
     vol.Optional(CONF_SLOTS, default={}): MP1_SWITCH_SLOT_SCHEMA,
     vol.Required(CONF_HOST): cv.string,
     vol.Required(CONF_MAC): cv.string,
@@ -235,7 +235,7 @@ class BroadlinkRMSwitch(SwitchDevice):
             self._device.send_data(packet)
         except (socket.timeout, ValueError) as error:
             if retry < 1:
-                _LOGGER.error(error)
+                _LOGGER.error("Error during sending a packet: %s", error)
                 return False
             if not self._auth():
                 return False
@@ -247,6 +247,8 @@ class BroadlinkRMSwitch(SwitchDevice):
             auth = self._device.auth()
         except socket.timeout:
             auth = False
+            if retry < 1:
+                _LOGGER.error("Timeout during authorization")
         if not auth and retry > 0:
             return self._auth(retry-1)
         return auth
@@ -260,6 +262,7 @@ class BroadlinkSP1Switch(BroadlinkRMSwitch):
         super().__init__(friendly_name, friendly_name, device, None, None)
         self._command_on = 1
         self._command_off = 0
+        self._load_power = None
 
     def _sendpacket(self, packet, retry=2):
         """Send packet to device."""
@@ -267,7 +270,7 @@ class BroadlinkSP1Switch(BroadlinkRMSwitch):
             self._device.set_power(packet)
         except (socket.timeout, ValueError) as error:
             if retry < 1:
-                _LOGGER.error(error)
+                _LOGGER.error("Error during sending a packet: %s", error)
                 return False
             if not self._auth():
                 return False
@@ -288,6 +291,14 @@ class BroadlinkSP2Switch(BroadlinkSP1Switch):
         """Return the polling state."""
         return True
 
+    @property
+    def current_power_w(self):
+        """Return the current power usage in Watt."""
+        try:
+            return round(self._load_power, 2)
+        except (ValueError, TypeError):
+            return None
+
     def update(self):
         """Synchronize state with switch."""
         self._update()
@@ -296,9 +307,10 @@ class BroadlinkSP2Switch(BroadlinkSP1Switch):
         """Update the state of the device."""
         try:
             state = self._device.check_power()
+            load_power = self._device.get_energy()
         except (socket.timeout, ValueError) as error:
             if retry < 1:
-                _LOGGER.error(error)
+                _LOGGER.error("Error during updating the state: %s", error)
                 return
             if not self._auth():
                 return
@@ -306,6 +318,7 @@ class BroadlinkSP2Switch(BroadlinkSP1Switch):
         if state is None and retry > 0:
             return self._update(retry-1)
         self._state = state
+        self._load_power = load_power
 
 
 class BroadlinkMP1Slot(BroadlinkRMSwitch):
@@ -330,7 +343,7 @@ class BroadlinkMP1Slot(BroadlinkRMSwitch):
             self._device.set_power(self._slot, packet)
         except (socket.timeout, ValueError) as error:
             if retry < 1:
-                _LOGGER.error(error)
+                _LOGGER.error("Error during sending a packet: %s", error)
                 return False
             if not self._auth():
                 return False
@@ -371,7 +384,7 @@ class BroadlinkMP1Switch:
             states = self._device.check_power()
         except (socket.timeout, ValueError) as error:
             if retry < 1:
-                _LOGGER.error(error)
+                _LOGGER.error("Error during updating the state: %s", error)
                 return
             if not self._auth():
                 return

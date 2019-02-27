@@ -13,7 +13,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.components.switch import SwitchDevice, PLATFORM_SCHEMA
 from homeassistant.const import CONF_NAME, CONF_MAC
 
-REQUIREMENTS = ['pySwitchmate==0.4.1']
+REQUIREMENTS = ['pySwitchmate==0.4.5']
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ class Switchmate(SwitchDevice):
 
     def __init__(self, mac, name, flip_on_off) -> None:
         """Initialize the Switchmate."""
+        # pylint: disable=import-error, no-member, no-value-for-parameter
         import switchmate
         self._mac = mac
         self._name = name
@@ -51,6 +52,11 @@ class Switchmate(SwitchDevice):
     def unique_id(self) -> str:
         """Return a unique, HASS-friendly identifier for this entity."""
         return self._mac.replace(':', '')
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return self._device.available
 
     @property
     def name(self) -> str:
